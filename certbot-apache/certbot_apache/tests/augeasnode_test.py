@@ -1,6 +1,12 @@
 """Tests for AugeasParserNode classes"""
 import mock
 
+try:
+    import apacheconfig  # pylint: disable=import-error,unused-import
+    APACHEV2 = True
+except ImportError: # pragma: no cover
+    APACHEV2 = False
+
 from acme.magic_typing import List  # pylint: disable=unused-import, no-name-in-module
 from certbot import errors
 

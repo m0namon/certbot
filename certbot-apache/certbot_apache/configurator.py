@@ -15,6 +15,13 @@ import six
 import zope.component
 import zope.interface
 
+try:
+    from apacheconfig import make_loader
+    from apacheconfig import flavors
+    APACHEV2 = True
+except ImportError: # pragma: no cover
+    APACHEV2 = False
+
 from acme import challenges
 from acme.magic_typing import DefaultDict, Dict, List, Set, Union  # pylint: disable=unused-import, no-name-in-module
 
@@ -257,10 +264,7 @@ class ApacheConfigurator(common.Installer):
         self.parser = self.get_parser()
 
         # Set up ParserNode root
-        pn_meta = {"augeasparser": self.parser,
-                   "augeaspath": self.parser.get_root_augpath(),
-                   "ac_ast": None}
-        self.parser_root = self.get_parsernode_root(pn_meta)
+        self.parser_root = self.get_parsernode_root()
 
         # Check for errors in parsing files with Augeas
         self.parser.check_parsing_errors("httpd.aug")
@@ -357,14 +361,23 @@ class ApacheConfigurator(common.Installer):
             self.option("server_root"), self.conf("vhost-root"),
             self.version, configurator=self)
 
-    def get_parsernode_root(self, metadata):
+    def get_parsernode_root(self):
         """Initializes the ParserNode parser root instance."""
+        metadata = {"augeasparser": self.parser,
+                    "augeaspath": self.parser.get_root_augpath(),
+                    "ac_ast": None}
 
         apache_vars = dict()
         apache_vars["defines"] = apache_util.parse_defines(self.option("ctl"))
         apache_vars["includes"] = apache_util.parse_includes(self.option("ctl"))
         apache_vars["modules"] = apache_util.parse_modules(self.option("ctl"))
         metadata["apache_vars"] = apache_vars
+
+        if APACHEV2:
+            with make_loader(writable=True, **flavors.NATIVE_APACHE) as loader:
+                with open(self.parser.loc["root"]) as f:
+                    ac_ast = loader.loads(f.read())
+                    metadata["ac_ast"] = ac_ast
 
         return dualparser.DualBlockNode(
             name=assertions.PASS,
